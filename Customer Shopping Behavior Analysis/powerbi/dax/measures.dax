@@ -1,0 +1,136 @@
+// =============================================================================
+// Customer Shopping Behavior | DAX measures
+// -----------------------------------------------------------------------------
+// Setup: Home > Enter Data > create an empty table named "_Measures"
+//        (one column, then delete the column) and add the measures below to it.
+// Fact table name assumed: Sales
+// =============================================================================
+
+
+// ---------------------------- 1. CORE KPIs -----------------------------------
+Total Revenue =
+SUM ( Sales[Purchase Amount (USD)] )
+
+Total Customers =
+DISTINCTCOUNT ( Sales[Customer ID] )
+
+Average Order Value =
+DIVIDE ( [Total Revenue], [Total Customers] )
+
+Average Rating =
+AVERAGE ( Sales[Review Rating] )      -- blanks are ignored, not treated as zero
+
+Average Previous Purchases =
+AVERAGE ( Sales[Previous Purchases] )
+
+Average Customer Age =
+AVERAGE ( Sales[Age] )
+
+Female Customer % =
+DIVIDE ( CALCULATE ( [Total Customers], Sales[Gender] = "Female" ), [Total Customers] )
+
+
+// ---------------------------- 2. SUBSCRIPTION --------------------------------
+Subscribers =
+CALCULATE ( [Total Customers], Sales[Subscription Status] = "Yes" )
+
+Subscriber Rate % =
+DIVIDE ( [Subscribers], [Total Customers] )
+
+Subscriber Revenue =
+CALCULATE ( [Total Revenue], Sales[Subscription Status] = "Yes" )
+
+Subscriber AOV =
+CALCULATE ( [Average Order Value], Sales[Subscription Status] = "Yes" )
+
+Non-Subscriber AOV =
+CALCULATE ( [Average Order Value], Sales[Subscription Status] = "No" )
+
+Subscriber AOV Lift % =
+DIVIDE ( [Subscriber AOV] - [Non-Subscriber AOV], [Non-Subscriber AOV] )
+
+
+// ---------------------------- 3. DISCOUNTS -----------------------------------
+Discounted Customers =
+CALCULATE ( [Total Customers], Sales[Discount Applied] = "Yes" )
+
+Discount Usage % =
+DIVIDE ( [Discounted Customers], [Total Customers] )
+
+Discounted Revenue =
+CALCULATE ( [Total Revenue], Sales[Discount Applied] = "Yes" )
+
+Discounted Revenue Share % =
+DIVIDE ( [Discounted Revenue], [Total Revenue] )
+
+Discounted AOV =
+CALCULATE ( [Average Order Value], Sales[Discount Applied] = "Yes" )
+
+Full-Price AOV =
+CALCULATE ( [Average Order Value], Sales[Discount Applied] = "No" )
+
+
+// ---------------------------- 4. SHARE & RANKING -----------------------------
+Revenue Share % =
+DIVIDE ( [Total Revenue], CALCULATE ( [Total Revenue], ALLSELECTED () ) )
+
+Revenue Rank by Item =
+RANKX ( ALLSELECTED ( Sales[Item Purchased] ), [Total Revenue], , DESC, Dense )
+
+Revenue Rank by State =
+RANKX ( ALLSELECTED ( Sales[Location] ), [Total Revenue], , DESC, Dense )
+
+Top 5 Items Revenue Share % =
+VAR Top5 =
+    TOPN ( 5, ALLSELECTED ( Sales[Item Purchased] ), [Total Revenue], DESC )
+RETURN
+    DIVIDE (
+        CALCULATE ( [Total Revenue], KEEPFILTERS ( Top5 ) ),
+        CALCULATE ( [Total Revenue], ALLSELECTED ( Sales ) )
+    )
+
+
+// ---------------------------- 5. CUSTOMER VALUE ------------------------------
+High Value Customers =
+CALCULATE ( [Total Customers], Sales[Purchase Tier] = "High" )
+
+High Value Customer % =
+DIVIDE ( [High Value Customers], [Total Customers] )
+
+Loyal Customers =
+CALCULATE ( [Total Customers], Sales[Previous Purchases] > 40 )
+
+Loyal Customer % =
+DIVIDE ( [Loyal Customers], [Total Customers] )
+
+Customers Not Rated =
+CALCULATE ( [Total Customers], Sales[Rating Band] = "Not Rated" )
+
+Rating Coverage % =
+1 - DIVIDE ( [Customers Not Rated], [Total Customers] )
+
+
+// ---------------------------- 6. DYNAMIC TITLES & FORMATTING -----------------
+Selected Category Label =
+IF (
+    ISFILTERED ( Sales[Category] ),
+    CONCATENATEX ( VALUES ( Sales[Category] ), Sales[Category], ", ", Sales[Category], ASC ),
+    "All Categories"
+)
+
+Revenue Chart Title =
+"Revenue by Season | " & [Selected Category Label]
+
+Rating Color =
+-- Use for conditional formatting (Format by > Field value)
+SWITCH (
+    TRUE (),
+    ISBLANK ( [Average Rating] ), "#BFBFBF",
+    [Average Rating] >= 4, "#2A9D8F",
+    [Average Rating] >= 3.5, "#E9C46A",
+    "#E76F51"
+)
+
+KPI Data Note =
+"Dataset: " & FORMAT ( [Total Customers], "#,0" ) & " customers | "
+    & FORMAT ( [Rating Coverage %], "0.0%" ) & " have a review rating"
